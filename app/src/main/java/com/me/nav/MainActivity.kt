@@ -27,7 +27,7 @@ import java.net.URLEncoder
 import java.util.Locale
 import kotlin.concurrent.thread
 
-data class R(val pts: List<GeoPoint>, val len: Double, val sec: Double)
+data class Rt(val pts: List<GeoPoint>, val len: Double, val sec: Double)
 
 class MainActivity : Activity(), TextToSpeech.OnInitListener {
     val RIGA = BoundingBox(57.05, 24.35, 56.85, 23.90)
@@ -140,10 +140,10 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
         val isA = next == 0; setPt(isA, p); put(if (isA) ea else eb, "%.5f, %.5f".format(p.latitude, p.longitude)); next = 1 - next; route()
     }
 
-    fun br(a: GeoPoint, b: GeoPoint, pr: String): R {
+    fun br(a: GeoPoint, b: GeoPoint, pr: String): Rt {
         val f = JSONObject(get("https://brouter.de/brouter?lonlats=${a.longitude},${a.latitude}|${b.longitude},${b.latitude}&profile=$pr&alternativeidx=0&format=geojson")).getJSONArray("features").getJSONObject(0)
         val c = f.getJSONObject("geometry").getJSONArray("coordinates"); val p = f.getJSONObject("properties")
-        return R((0 until c.length()).map { val x = c.getJSONArray(it); GeoPoint(x.getDouble(1), x.getDouble(0)) }, p.getString("track-length").toDouble(), p.getString("total-time").toDouble())
+        return Rt((0 until c.length()).map { val x = c.getJSONArray(it); GeoPoint(x.getDouble(1), x.getDouble(0)) }, p.getString("track-length").toDouble(), p.getString("total-time").toDouble())
     }
 
     fun route() {
@@ -163,7 +163,7 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
         } catch (e: Exception) { runOnUiThread { info.text = "Не удалось построить маршрут. Проверь интернет." } } }
     }
 
-    fun draw(r: R, note: String) {
+    fun draw(r: Rt, note: String) {
         try {
             line?.let { map.overlays.remove(it) }
             line = Polyline(map).apply { setPoints(r.pts); outlinePaint.color = Color.rgb(255, 77, 109); outlinePaint.strokeWidth = 14f }
