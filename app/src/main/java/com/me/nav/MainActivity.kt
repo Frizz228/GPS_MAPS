@@ -53,6 +53,11 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
 
     override fun onCreate(s: Bundle?) {
         super.onCreate(s)
+        val sp = getSharedPreferences("n", 0)
+        Thread.setDefaultUncaughtExceptionHandler { _, e ->
+            sp.edit().putString("crash", e.toString() + "\n" + e.stackTrace.take(6).joinToString("\n")).commit()
+            Process.killProcess(Process.myPid())
+        }
         Configuration.getInstance().apply { userAgentValue = packageName; osmdroidBasePath = File(cacheDir, "osm"); osmdroidTileCache = File(cacheDir, "osm/tiles") }
         requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), 1)
         tts = TextToSpeech(this, this)
@@ -70,6 +75,7 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
         ea = et("Откуда: адрес или место"); eb = et("Куда: адрес или место")
         ea.onText { q -> if (!ignore) find(q, true) }; eb.onText { q -> if (!ignore) find(q, false) }
         info = TextView(this).apply { setTextColor(0xFFB8C4D0.toInt()); text = "Рига, велосипед. Пиши адрес или тапай по карте." }
+        sp.getString("crash", null)?.let { info.text = "Прошлый сбой:\n$it"; sp.edit().remove("crash").apply() }
         list = ListView(this).apply { visibility = View.GONE }
         val loc = btn("📍").apply { setOnClickListener {
             val m = me.myLocation
@@ -158,11 +164,16 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
     }
 
     fun draw(r: R, note: String) {
-        line?.let { map.overlays.remove(it) }
-        line = Polyline().apply { setPoints(r.pts); outlinePaint.color = Color.rgb(255, 77, 109); outlinePaint.strokeWidth = 14f }
-        map.overlays.add(1, line); map.zoomToBoundingBox(BoundingBox.fromGeoPoints(r.pts).increaseByScale(1.4f), true)
-        turns = calcTurns(r.pts); ti = 0; riding = false; ride.text = "Поехали"
-        info.text = "%.1f км · %d мин\n%s".format(r.len / 1000, (r.sec / 60).toInt(), note)
+        try {
+            line?.let { map.overlays.remove(it) }
+            line = Polyline(map).apply { setPoints(r.pts); outlinePaint.color = Color.rgb(255, 77, 109); outlinePaint.strokeWidth = 14f }
+            map.overlays.add(line)
+            map.invalidate()
+            turns = calcTurns(r.pts); ti = 0; riding = false; ride.text = "Поехали"
+            info.text = "%.1f км · %d мин\n%s".format(r.len / 1000, (r.sec / 60).toInt(), note)
+            val bb = BoundingBox.fromGeoPoints(r.pts)
+            map.post { runCatching { map.zoomToBoundingBox(bb.increaseByScale(1.4f), false) } }
+        } catch (e: Throwable) { info.text = "Ошибка: $e" }
     }
 
     fun calcTurns(p: List<GeoPoint>): List<Pair<GeoPoint, String>> {
